@@ -175,7 +175,7 @@ export async function fetchPullRequests(
       const response = await apiClient.get<ListResponse<RawPullRequest>>(url, {
         params: {
           state,
-          pagelen: 100,
+          pagelen: 50,
           q: `updated_on >= ${updated_since.toISOString()}`,
         },
       });

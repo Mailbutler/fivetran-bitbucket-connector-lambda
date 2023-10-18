@@ -1,4 +1,10 @@
 {
-  "a": "Hello World",
-  "b": 10
+  "agent": "just-testing",
+  "secrets": {
+    "workspace": "mailbutler",
+    "repositorySlugs": "mailbutler-mansion",
+    "username": "fjaeger4",
+    "password": ""
+  },
+  "state": {}
 }

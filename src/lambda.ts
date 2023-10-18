@@ -21,7 +21,7 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
     for (const repoSlug of repositorySlugs) {
       if (!!event.setup_test) continue;
 
-      const updatedSince = dayjs(event.state.since || "2023-01-01");
+      const updatedSince = dayjs(event.state.since || "2023-01-01T00:00:00Z");
       const pullRequests = (
         await Promise.all(
           (["OPEN", "MERGED"] as const).map((state) =>

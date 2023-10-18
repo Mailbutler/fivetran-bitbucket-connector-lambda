@@ -1,5 +1,5 @@
 import axios from "axios";
-import { Dayjs } from "dayjs";
+import dayjs, { Dayjs } from "dayjs";
 import { uuid } from "./utils";
 
 interface Config {
@@ -9,22 +9,22 @@ interface Config {
 }
 
 export interface PullRequest {
-  [key: string]: string | number | null;
+  [key: string]: string | number | Date | null;
   id: number;
   title: string;
   author: string;
   comment_count: number;
   task_count: number;
-  created_on: string;
-  updated_on: string;
-  first_commit_on: string | null;
+  created_on: Date;
+  updated_on: Date;
+  first_commit_on: Date;
 }
 
 export interface Activity {
-  [key: string]: string | number | null;
+  [key: string]: string | number | Date | null;
   uuid: string;
   type: "comment" | "approval" | "update";
-  date: string;
+  date: Date;
   user_id: string;
   pull_request_id: number;
 }
@@ -207,9 +207,9 @@ export async function fetchPullRequests(
               comment_count,
               task_count,
               author: author.uuid,
-              created_on,
-              updated_on,
-              first_commit_on,
+              created_on: dayjs(created_on).toDate(),
+              updated_on: dayjs(updated_on).toDate(),
+              first_commit_on: dayjs(first_commit_on).toDate(),
             };
           }
         )
@@ -257,7 +257,7 @@ export async function fetchPullRequestActivities(
               `${rawActivity.pull_request.id}-approval-${rawActivity.approval.date}`
             ),
             type: "approval",
-            date: rawActivity.approval.date,
+            date: dayjs(rawActivity.approval.date).toDate(),
             user_id: rawActivity.approval.user.uuid,
             pull_request_id: rawActivity.pull_request.id,
           };
@@ -267,7 +267,7 @@ export async function fetchPullRequestActivities(
               `${rawActivity.pull_request.id}-comment-${rawActivity.comment.created_on}`
             ),
             type: "comment",
-            date: rawActivity.comment.created_on,
+            date: dayjs(rawActivity.comment.created_on).toDate(),
             user_id: rawActivity.comment.user.uuid,
             pull_request_id: rawActivity.pull_request.id,
           };
@@ -277,7 +277,7 @@ export async function fetchPullRequestActivities(
               `${rawActivity.pull_request.id}-update-${rawActivity.update.date}`
             ),
             type: "comment",
-            date: rawActivity.update.date,
+            date: dayjs(rawActivity.update.date).toDate(),
             user_id: rawActivity.update.author.uuid,
             pull_request_id: rawActivity.pull_request.id,
           };

@@ -3,7 +3,8 @@ import { Dayjs } from "dayjs";
 import { uuid } from "./utils";
 
 interface Config {
-  accessToken: string;
+  username: string;
+  password: string;
   workspace: string;
 }
 
@@ -125,7 +126,7 @@ async function fetchFirstCommit(
 ): Promise<string | null> {
   const apiClient = axios.create({
     baseURL: "https://api.bitbucket.org/2.0",
-    headers: { Authorization: `Bearer ${config.accessToken}` },
+    auth: { username: config.username, password: config.password },
   });
 
   let nextPageLink: string | undefined;
@@ -159,7 +160,7 @@ export async function fetchPullRequests(
 ): Promise<PullRequest[]> {
   const apiClient = axios.create({
     baseURL: "https://api.bitbucket.org/2.0",
-    headers: { Authorization: `Bearer ${config.accessToken}` },
+    auth: { username: config.username, password: config.password },
   });
 
   const pullRequestList: PullRequest[] = [];
@@ -226,7 +227,7 @@ export async function fetchPullRequestActivities(
 ): Promise<Activity[]> {
   const apiClient = axios.create({
     baseURL: "https://api.bitbucket.org/2.0",
-    headers: { Authorization: `Bearer ${config.accessToken}` },
+    auth: { username: config.username, password: config.password },
   });
 
   const activityList: Activity[] = [];

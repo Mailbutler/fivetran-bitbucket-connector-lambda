@@ -8,8 +8,9 @@
   "scripts": {
     "clean": "rm *.js src/*.js",
     "test": "mocha -r /usr/local/lib/node_modules/ts-node/register -C test/**.spec.ts",
-    "local": "mocha -r /usr/local/lib/node_modules/ts-node/register -C test/**.spec.ts && tsc *.ts src/*.ts && node-lambda run",
-    "deploy": "mocha -r /usr/local/lib/node_modules/ts-node/register -C test/**.spec.ts && tsc *.ts src/*.ts && node-lambda deploy"
+    "local": "tsc && node-lambda run",
+    "package": "tsc && node-lambda package",
+    "deploy": "tsc && node-lambda deploy"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.125",

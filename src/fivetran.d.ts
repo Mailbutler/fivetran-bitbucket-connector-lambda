@@ -6,7 +6,8 @@ export interface FivetranRequest {
   secrets: {
     workspace: string;
     repositorySlugs: string;
-    accessToken: string;
+    username: string;
+    password: string;
   };
   setup_test?: boolean;
   sync_id?: string;

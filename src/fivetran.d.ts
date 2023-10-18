@@ -16,7 +16,7 @@ export interface FivetranRequest {
 export type FivetranCellType = string | number | null;
 export type FivetranRow = { [key: string]: FivetranCellType };
 
-export interface FivetranResponse {
+export interface FivetranSuccessResponse {
   state: {
     since: string;
   };
@@ -26,3 +26,9 @@ export interface FivetranResponse {
   hasMore: boolean;
   softDelete?: string[];
 }
+
+export interface FivetranErrorResponse {
+  errorMessage: string;
+}
+
+export type FivetranResponse = FivetranSuccessResponse | FivetranErrorResponse;

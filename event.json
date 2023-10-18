@@ -3,7 +3,7 @@
   "secrets": {
     "workspace": "mailbutler",
     "repositorySlugs": "mailbutler-mansion",
-    "username": "fjaeger4",
+    "username": "",
     "password": ""
   },
   "state": {}

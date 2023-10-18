@@ -3,8 +3,10 @@ import { FivetranRequest, FivetranResponse } from "./fivetran";
 import {
   Activity,
   PullRequest,
+  User,
   fetchPullRequestActivities,
   fetchPullRequests,
+  fetchUsers,
 } from "./bitbucket";
 import dayjs from "dayjs";
 
@@ -15,6 +17,7 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
     const repositorySlugs = event.secrets.repositorySlugs.split(",");
     console.log(`Fetching information for ${repositorySlugs}`);
 
+    const users: User[] = await fetchUsers(event.secrets);
     const pull_requests: PullRequest[] = [];
     const pull_request_activities: Activity[] = [];
 
@@ -44,10 +47,12 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
     return {
       state: { since: dayjs().toISOString() },
       insert: {
+        users,
         pull_requests,
         pull_request_activities,
       },
       schema: {
+        users: { primary_key: ["uuid"] },
         pull_requests: { primary_key: ["id"] },
         pull_request_activities: { primary_key: ["uuid"] },
       },

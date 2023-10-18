@@ -30,14 +30,23 @@ export interface Activity {
 }
 
 export interface User {
+  [key: string]: string;
   uuid: string;
   account_id: string;
   nickname: string;
   display_name: string;
 }
 
+interface RawMember {
+  type: "workspace_membership" | string;
+  user: RawUser;
+}
+
 interface RawUser {
   uuid: string;
+  nickname: string;
+  display_name: string;
+  account_id: string;
 }
 
 interface RawApprovalPayload {
@@ -150,6 +159,45 @@ async function fetchFirstCommit(
   } while (!!nextPageLink);
 
   return null;
+}
+
+export async function fetchUsers(config: Config): Promise<User[]> {
+  const apiClient = axios.create({
+    baseURL: "https://api.bitbucket.org/2.0",
+    auth: { username: config.username, password: config.password },
+  });
+
+  const userList: User[] = [];
+
+  let nextPageLink: string | undefined;
+  do {
+    try {
+      console.log(`Fetching users`);
+      const url = nextPageLink || `/workspaces/${config.workspace}/members`;
+      const response = await apiClient.get<ListResponse<RawMember>>(url);
+
+      console.log(`Fetched ${response.data.values.length} users`);
+
+      const users: User[] = response.data.values
+        .filter((member) => member.type === "workspace_membership")
+        .map((member) => member.user)
+        .map(({ uuid, nickname, display_name, account_id }) => {
+          return {
+            uuid,
+            nickname,
+            display_name,
+            account_id,
+          };
+        });
+
+      userList.push(...users);
+    } catch (error) {
+      console.error("An error occurred:", error);
+      break;
+    }
+  } while (!!nextPageLink);
+
+  return userList;
 }
 
 export async function fetchPullRequests(

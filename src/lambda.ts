@@ -13,11 +13,12 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
 ) => {
   try {
     const repositorySlugs = event.secrets.repositorySlugs.split(",");
+    console.log(`Fetching information for ${repositorySlugs}`);
 
     const pull_requests: PullRequest[] = [];
     const pull_request_activities: Activity[] = [];
 
-    repositorySlugs.forEach(async (repoSlug) => {
+    for (const repoSlug of repositorySlugs) {
       const updatedSince = dayjs(event.state.since || "2018-01-01");
       const pullRequests = (
         await Promise.all(
@@ -28,15 +29,15 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
       ).flat();
       pull_requests.push(...pullRequests);
 
-      pullRequests.forEach(async (pullRequest) => {
+      for (const pullRequest of pullRequests) {
         const activities = await fetchPullRequestActivities(
           event.secrets,
           repoSlug,
           pullRequest.id
         );
         pull_request_activities.push(...activities);
-      });
-    });
+      }
+    }
 
     return {
       state: { since: dayjs().toISOString() },

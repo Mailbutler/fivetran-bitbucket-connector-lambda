@@ -168,6 +168,7 @@ export async function fetchPullRequests(
   let nextPageLink: string | undefined;
   do {
     try {
+      console.log(`Fetching pull requests for ${repoSlug}`);
       const url =
         nextPageLink ||
         `/repositories/${config.workspace}/${repoSlug}/pullrequests`;
@@ -178,6 +179,10 @@ export async function fetchPullRequests(
           q: `updated_on >= ${updated_since.toISOString()}`,
         },
       });
+
+      console.log(
+        `Fetched ${response.data.values.length} pull requests for ${repoSlug}`
+      );
 
       const pullRequests: PullRequest[] = await Promise.all(
         response.data.values.map(
@@ -235,10 +240,15 @@ export async function fetchPullRequestActivities(
   let nextPageLink: string | undefined;
   do {
     try {
+      console.log(`Fetching activities for ${repoSlug}`);
       const url =
         nextPageLink ||
         `/repositories/${config.workspace}/${repoSlug}/pullrequests/${pullRequestId}/activity`;
       const response = await apiClient.get<ListResponse<RawActivity>>(url);
+
+      console.log(
+        `Fetched ${response.data.values.length} activities for ${repoSlug}`
+      );
 
       const activities: Activity[] = response.data.values.map((rawActivity) => {
         if (isApproval(rawActivity)) {

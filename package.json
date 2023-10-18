@@ -6,7 +6,7 @@
   "author": "Fabian Jäger",
   "license": "MIT",
   "scripts": {
-    "clean": "rm -rf *.js src/*.js dist build",
+    "clean": "rm -rf *.js src/*.js dist",
     "test": "mocha -r /usr/local/lib/node_modules/ts-node/register -C test/**.spec.ts",
     "local": "tsc && node-lambda run",
     "package": "tsc && node-lambda package",

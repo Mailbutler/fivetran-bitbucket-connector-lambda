@@ -1,6 +1,3 @@
-type Event = {a: string, b: number}
+import { Handler } from "aws-lambda";
 
-export function handler(event: Event): Promise<Event> {
-  console.log('==> ', event)
-  return Promise.resolve(event)
-}
+export const handler: Handler = async (event, context) => {};

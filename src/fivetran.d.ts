@@ -3,20 +3,24 @@ export interface FivetranRequest {
   state: {
     since?: string; // we could add other 'cursors'
   };
-  secrets?: Record<string, string>;
+  secrets: {
+    workspace: string;
+    repositorySlugs: string;
+    accessToken: string;
+  };
   setup_test?: boolean;
   sync_id?: string;
 }
 
-export type FiveTranCellType = string | number;
-export type FivetranRow = Record<string, FiveTranCellType>;
+export type FivetranCellType = string | number | null;
+export type FivetranRow = { [key: string]: FivetranCellType };
 
 export interface FivetranResponse {
   state: {
     since: string;
   };
   insert: Record<string, FivetranRow[]>;
-  delete?: Record<string, Record<string, FiveTranCellType>>;
+  delete?: Record<string, FivetranRow>;
   schema?: Record<string, { primary_key: string[] }>;
   hasMore: boolean;
   softDelete?: string[];

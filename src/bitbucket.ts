@@ -23,7 +23,7 @@ export interface PullRequest {
 export interface Activity {
   [key: string]: string | number | Date | null;
   uuid: string;
-  type: "comment" | "approval" | "update";
+  type: string | "comment" | "approval" | "merged" | "open" | "declined";
   date: Date;
   user_id: string;
   pull_request_id: number;
@@ -322,9 +322,9 @@ export async function fetchPullRequestActivities(
         } else if (isUpdate(rawActivity)) {
           return {
             uuid: uuid(
-              `${rawActivity.pull_request.id}-update-${rawActivity.update.date}`
+              `${rawActivity.pull_request.id}-${rawActivity.update.state}-${rawActivity.update.date}`
             ),
-            type: "comment",
+            type: rawActivity.update.state.toLowerCase(),
             date: dayjs(rawActivity.update.date).toDate(),
             user_id: rawActivity.update.author.uuid,
             pull_request_id: rawActivity.pull_request.id,

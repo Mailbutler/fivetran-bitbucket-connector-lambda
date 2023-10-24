@@ -1,6 +1,6 @@
 import axios from "axios";
 import dayjs, { Dayjs } from "dayjs";
-import { uuid } from "./utils";
+import { compactArray, uuid } from "./utils";
 
 interface Config {
   username: string;
@@ -65,6 +65,11 @@ interface RawUpdatePayload {
   author: RawUser;
 }
 
+interface RawChangeRequestPayload {
+  date: string;
+  user: RawUser;
+}
+
 interface RawActivity {
   pull_request: {
     id: number;
@@ -72,6 +77,7 @@ interface RawActivity {
   approval?: RawApprovalPayload;
   comment?: RawCommentPayload;
   update?: RawUpdatePayload;
+  changes_requested?: RawChangeRequestPayload;
 }
 
 interface RawApprovalActivity extends RawActivity {
@@ -83,6 +89,9 @@ interface RawCommentActivity extends RawActivity {
 interface RawUpdateActivity extends RawActivity {
   update: RawUpdatePayload;
 }
+interface RawChangeRequestActivity extends RawActivity {
+  changes_requested: RawChangeRequestPayload;
+}
 
 function isApproval(activity: RawActivity): activity is RawApprovalActivity {
   return !!activity.approval;
@@ -92,6 +101,11 @@ function isComment(activity: RawActivity): activity is RawCommentActivity {
 }
 function isUpdate(activity: RawActivity): activity is RawUpdateActivity {
   return !!activity.update;
+}
+function isChangeRequest(
+  activity: RawActivity
+): activity is RawChangeRequestActivity {
+  return !!activity.changes_requested;
 }
 
 interface RawCommit {
@@ -140,21 +154,16 @@ async function fetchFirstCommit(
 
   let nextPageLink: string | undefined;
   do {
-    try {
-      const url =
-        nextPageLink ||
-        `/repositories/${config.workspace}/${repoSlug}/pullrequests/${pullRequestId}/commits`;
-      const response = await apiClient.get<ListResponse<RawCommit>>(url, {
-        params: { pagelen: 100 },
-      });
+    const url =
+      nextPageLink ||
+      `/repositories/${config.workspace}/${repoSlug}/pullrequests/${pullRequestId}/commits`;
+    const response = await apiClient.get<ListResponse<RawCommit>>(url, {
+      params: { pagelen: 100 },
+    });
 
-      if (!nextPageLink) {
-        const commits = response.data.values;
-        return commits[commits.length - 1].date;
-      }
-    } catch (error) {
-      console.error("An error occurred:", error);
-      return null;
+    if (!nextPageLink) {
+      const commits = response.data.values;
+      return commits[commits.length - 1].date;
     }
   } while (!!nextPageLink);
 
@@ -171,30 +180,25 @@ export async function fetchUsers(config: Config): Promise<User[]> {
 
   let nextPageLink: string | undefined;
   do {
-    try {
-      console.log(`Fetching users`);
-      const url = nextPageLink || `/workspaces/${config.workspace}/members`;
-      const response = await apiClient.get<ListResponse<RawMember>>(url);
+    console.log(`Fetching users`);
+    const url = nextPageLink || `/workspaces/${config.workspace}/members`;
+    const response = await apiClient.get<ListResponse<RawMember>>(url);
 
-      console.log(`Fetched ${response.data.values.length} users`);
+    console.log(`Fetched ${response.data.values.length} users`);
 
-      const users: User[] = response.data.values
-        .filter((member) => member.type === "workspace_membership")
-        .map((member) => member.user)
-        .map(({ uuid, nickname, display_name, account_id }) => {
-          return {
-            uuid,
-            nickname,
-            display_name,
-            account_id,
-          };
-        });
+    const users: User[] = response.data.values
+      .filter((member) => member.type === "workspace_membership")
+      .map((member) => member.user)
+      .map(({ uuid, nickname, display_name, account_id }) => {
+        return {
+          uuid,
+          nickname,
+          display_name,
+          account_id,
+        };
+      });
 
-      userList.push(...users);
-    } catch (error) {
-      console.error("An error occurred:", error);
-      break;
-    }
+    userList.push(...users);
   } while (!!nextPageLink);
 
   return userList;
@@ -215,59 +219,50 @@ export async function fetchPullRequests(
 
   let nextPageLink: string | undefined;
   do {
-    try {
-      console.log(`Fetching pull requests for ${repoSlug}`);
-      const url =
-        nextPageLink ||
-        `/repositories/${config.workspace}/${repoSlug}/pullrequests`;
-      const response = await apiClient.get<ListResponse<RawPullRequest>>(url, {
-        params: {
-          state,
-          pagelen: 50,
-          q: `updated_on >= ${updated_since.toISOString()}`,
-        },
-      });
+    console.log(`Fetching '${state}' pull requests for ${repoSlug}`);
+    const url =
+      nextPageLink ||
+      `/repositories/${config.workspace}/${repoSlug}/pullrequests`;
+    const response = await apiClient.get<ListResponse<RawPullRequest>>(url, {
+      params: {
+        state,
+        pagelen: 50,
+        q: `updated_on >= ${updated_since.toISOString()}`,
+      },
+    });
 
-      console.log(
-        `Fetched ${response.data.values.length} pull requests for ${repoSlug}`
-      );
+    console.log(
+      `Fetched ${response.data.values.length} '${state}' pull requests for ${repoSlug}`
+    );
 
-      const pullRequests: PullRequest[] = await Promise.all(
-        response.data.values.map(
-          async ({
+    const pullRequests: PullRequest[] = await Promise.all(
+      response.data.values.map(
+        async ({
+          id,
+          title,
+          comment_count,
+          task_count,
+          author,
+          created_on,
+          updated_on,
+        }) => {
+          const first_commit_on = await fetchFirstCommit(config, repoSlug, id);
+
+          return {
             id,
             title,
             comment_count,
             task_count,
-            author,
-            created_on,
-            updated_on,
-          }) => {
-            const first_commit_on = await fetchFirstCommit(
-              config,
-              repoSlug,
-              id
-            );
+            author: author.uuid,
+            created_on: dayjs(created_on).toDate(),
+            updated_on: dayjs(updated_on).toDate(),
+            first_commit_on: dayjs(first_commit_on).toDate(),
+          };
+        }
+      )
+    );
 
-            return {
-              id,
-              title,
-              comment_count,
-              task_count,
-              author: author.uuid,
-              created_on: dayjs(created_on).toDate(),
-              updated_on: dayjs(updated_on).toDate(),
-              first_commit_on: dayjs(first_commit_on).toDate(),
-            };
-          }
-        )
-      );
-
-      pullRequestList.push(...pullRequests);
-    } catch (error) {
-      console.error("An error occurred:", error);
-      break;
-    }
+    pullRequestList.push(...pullRequests);
   } while (!!nextPageLink);
 
   return pullRequestList;
@@ -287,18 +282,18 @@ export async function fetchPullRequestActivities(
 
   let nextPageLink: string | undefined;
   do {
-    try {
-      console.log(`Fetching activities for ${repoSlug}`);
-      const url =
-        nextPageLink ||
-        `/repositories/${config.workspace}/${repoSlug}/pullrequests/${pullRequestId}/activity`;
-      const response = await apiClient.get<ListResponse<RawActivity>>(url);
+    console.log(`Fetching activities for ${repoSlug}`);
+    const url =
+      nextPageLink ||
+      `/repositories/${config.workspace}/${repoSlug}/pullrequests/${pullRequestId}/activity`;
+    const response = await apiClient.get<ListResponse<RawActivity>>(url);
 
-      console.log(
-        `Fetched ${response.data.values.length} activities for ${repoSlug}`
-      );
+    console.log(
+      `Fetched ${response.data.values.length} activities for ${repoSlug}`
+    );
 
-      const activities: Activity[] = response.data.values.map((rawActivity) => {
+    const activities: Activity[] = compactArray(
+      response.data.values.map((rawActivity) => {
         if (isApproval(rawActivity)) {
           return {
             uuid: uuid(
@@ -329,18 +324,26 @@ export async function fetchPullRequestActivities(
             user_id: rawActivity.update.author.uuid,
             pull_request_id: rawActivity.pull_request.id,
           };
+        } else if (isChangeRequest(rawActivity)) {
+          return {
+            uuid: uuid(
+              `${rawActivity.pull_request.id}-changeRequest-${rawActivity.changes_requested.date}`
+            ),
+            type: "changeRequest",
+            date: dayjs(rawActivity.changes_requested.date).toDate(),
+            user_id: rawActivity.changes_requested.user.uuid,
+            pull_request_id: rawActivity.pull_request.id,
+          };
         } else {
-          throw new Error(`Unknown activity: ${JSON.stringify(rawActivity)}`);
+          console.warn(`Unknown activity: ${JSON.stringify(rawActivity)}`);
+          return null;
         }
-      });
+      })
+    );
 
-      activityList.push(...activities);
+    activityList.push(...activities);
 
-      nextPageLink = response.data.next;
-    } catch (error) {
-      console.error("An error occurred:", error);
-      break;
-    }
+    nextPageLink = response.data.next;
   } while (!!nextPageLink);
 
   return activityList;

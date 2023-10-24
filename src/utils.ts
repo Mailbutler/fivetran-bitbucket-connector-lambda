@@ -13,3 +13,7 @@ export function uuidFromMD5(md5Hash: string) {
 export function uuid(someString: string): string {
   return uuidFromMD5(MD5(someString).toString());
 }
+
+export function compactArray<T>(array: (T | undefined | null)[]): T[] {
+  return array.filter((value) => !!value) as T[];
+}

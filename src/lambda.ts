@@ -24,7 +24,7 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
     for (const repoSlug of repositorySlugs) {
       if (!!event.setup_test) continue;
 
-      const updatedSince = dayjs(event.state.since || "2020-01-01T00:00:00Z");
+      const updatedSince = dayjs(event.state.since || "2015-01-01T00:00:00Z");
       const pullRequests = (
         await Promise.all(
           (["OPEN", "MERGED"] as const).map((state) =>
@@ -32,16 +32,18 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
           )
         )
       ).flat();
-      pull_requests.push(...pullRequests);
 
-      for (const pullRequest of pullRequests) {
-        const activities = await fetchPullRequestActivities(
-          event.secrets,
-          repoSlug,
-          pullRequest.id
-        );
-        pull_request_activities.push(...activities);
-      }
+      const activities = (
+        await Promise.all(
+          pullRequests.map((pullRequest) =>
+            fetchPullRequestActivities(event.secrets, repoSlug, pullRequest.id)
+          )
+        )
+      ).flat();
+
+      // add to global lists
+      pull_requests.push(...pullRequests);
+      pull_request_activities.push(...activities);
     }
 
     return {

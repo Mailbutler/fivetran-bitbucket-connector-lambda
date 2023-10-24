@@ -121,6 +121,11 @@ interface RawPullRequest {
   author: RawUser;
   created_on: string;
   updated_on: string;
+  links: {
+    commits: {
+      href: string;
+    };
+  };
 }
 
 interface RawPullRequest {
@@ -144,8 +149,7 @@ interface ListResponse<T> {
 
 async function fetchFirstCommit(
   config: Config,
-  repoSlug: string,
-  pullRequestId: number
+  initialUrl: string
 ): Promise<string | null> {
   const apiClient = axios.create({
     baseURL: "https://api.bitbucket.org/2.0",
@@ -154,16 +158,22 @@ async function fetchFirstCommit(
 
   let nextPageLink: string | undefined;
   do {
-    const url =
-      nextPageLink ||
-      `/repositories/${config.workspace}/${repoSlug}/pullrequests/${pullRequestId}/commits`;
-    const response = await apiClient.get<ListResponse<RawCommit>>(url, {
-      params: { pagelen: 100 },
-    });
+    try {
+      const url = nextPageLink || initialUrl;
+      const response = await apiClient.get<ListResponse<RawCommit>>(url, {
+        params: nextPageLink ? {} : { pagelen: 100 },
+      });
+      nextPageLink = response.data.next;
 
-    if (!nextPageLink) {
-      const commits = response.data.values;
-      return commits[commits.length - 1].date;
+      if (!nextPageLink) {
+        const commits = response.data.values;
+        return commits[commits.length - 1].date;
+      }
+    } catch (error) {
+      console.warn(
+        `failed to fetch commits from '${nextPageLink || initialUrl}': ${error}`
+      );
+      return null;
     }
   } while (!!nextPageLink);
 
@@ -183,6 +193,7 @@ export async function fetchUsers(config: Config): Promise<User[]> {
     console.log(`Fetching users`);
     const url = nextPageLink || `/workspaces/${config.workspace}/members`;
     const response = await apiClient.get<ListResponse<RawMember>>(url);
+    nextPageLink = response.data.next;
 
     console.log(`Fetched ${response.data.values.length} users`);
 
@@ -219,17 +230,22 @@ export async function fetchPullRequests(
 
   let nextPageLink: string | undefined;
   do {
-    console.log(`Fetching '${state}' pull requests for ${repoSlug}`);
     const url =
       nextPageLink ||
       `/repositories/${config.workspace}/${repoSlug}/pullrequests`;
+    console.log(
+      `Fetching '${state}' pull requests for '${repoSlug}' from '${url}'`
+    );
     const response = await apiClient.get<ListResponse<RawPullRequest>>(url, {
-      params: {
-        state,
-        pagelen: 50,
-        q: `updated_on >= ${updated_since.toISOString()}`,
-      },
+      params: nextPageLink
+        ? {}
+        : {
+            state,
+            pagelen: 50,
+            q: `updated_on >= ${updated_since.toISOString()}`,
+          },
     });
+    nextPageLink = response.data.next;
 
     console.log(
       `Fetched ${response.data.values.length} '${state}' pull requests for ${repoSlug}`
@@ -245,8 +261,12 @@ export async function fetchPullRequests(
           author,
           created_on,
           updated_on,
+          links,
         }) => {
-          const first_commit_on = await fetchFirstCommit(config, repoSlug, id);
+          const first_commit_on = await fetchFirstCommit(
+            config,
+            links.commits.href
+          );
 
           return {
             id,
@@ -256,7 +276,7 @@ export async function fetchPullRequests(
             author: author.uuid,
             created_on: dayjs(created_on).toDate(),
             updated_on: dayjs(updated_on).toDate(),
-            first_commit_on: dayjs(first_commit_on).toDate(),
+            first_commit_on: dayjs(first_commit_on || created_on).toDate(),
           };
         }
       )
@@ -282,11 +302,12 @@ export async function fetchPullRequestActivities(
 
   let nextPageLink: string | undefined;
   do {
-    console.log(`Fetching activities for ${repoSlug}`);
     const url =
       nextPageLink ||
       `/repositories/${config.workspace}/${repoSlug}/pullrequests/${pullRequestId}/activity`;
+    console.log(`Fetching activities for '${repoSlug}' from '${url}'`);
     const response = await apiClient.get<ListResponse<RawActivity>>(url);
+    nextPageLink = response.data.next;
 
     console.log(
       `Fetched ${response.data.values.length} activities for ${repoSlug}`
@@ -342,8 +363,6 @@ export async function fetchPullRequestActivities(
     );
 
     activityList.push(...activities);
-
-    nextPageLink = response.data.next;
   } while (!!nextPageLink);
 
   return activityList;

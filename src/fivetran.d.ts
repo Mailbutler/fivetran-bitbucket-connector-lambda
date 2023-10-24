@@ -2,6 +2,7 @@ export interface FivetranRequest {
   agent: string;
   state: {
     since?: string; // we could add other 'cursors'
+    nextPageLinks?: Record<string, Record<string, string | undefined>>;
   };
   secrets: {
     workspace: string;
@@ -18,7 +19,8 @@ export type FivetranRow = { [key: string]: FivetranCellType };
 
 export interface FivetranSuccessResponse {
   state: {
-    since: string;
+    since: string | undefined;
+    nextPageLinks: Record<string, Record<string, string | undefined>>;
   };
   insert: Record<string, FivetranRow[]>;
   delete?: Record<string, FivetranRow>;

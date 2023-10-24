@@ -215,7 +215,7 @@ export async function fetchUsers(config: Config): Promise<User[]> {
   return userList;
 }
 
-export async function fetchPullRequests(
+export async function fetchPullRequestsSince(
   config: Config,
   repoSlug: string,
   state: "OPEN" | "MERGED" | "DECLINED",
@@ -288,6 +288,70 @@ export async function fetchPullRequests(
   return pullRequestList;
 }
 
+export async function fetchPullRequestsPage(
+  config: Config,
+  repoSlug: string,
+  state: "OPEN" | "MERGED" | "DECLINED",
+  nextPageLink: string | undefined
+): Promise<{ pullRequests: PullRequest[]; nextPageLink: string | undefined }> {
+  const apiClient = axios.create({
+    baseURL: "https://api.bitbucket.org/2.0",
+    auth: { username: config.username, password: config.password },
+  });
+
+  const pullRequestList: PullRequest[] = [];
+
+  const url =
+    nextPageLink ||
+    `/repositories/${config.workspace}/${repoSlug}/pullrequests`;
+  console.log(
+    `Fetching '${state}' pull requests for '${repoSlug}' from '${url}'`
+  );
+  const response = await apiClient.get<ListResponse<RawPullRequest>>(url, {
+    params: nextPageLink ? {} : { state, pagelen: 50 },
+  });
+  nextPageLink = response.data.next;
+
+  console.log(
+    `Fetched ${response.data.values.length} '${state}' pull requests for ${repoSlug}`
+  );
+
+  const pullRequests: PullRequest[] = await Promise.all(
+    response.data.values.map(
+      async ({
+        id,
+        title,
+        comment_count,
+        task_count,
+        author,
+        created_on,
+        updated_on,
+        links,
+      }) => {
+        const first_commit_on = await fetchFirstCommit(
+          config,
+          links.commits.href
+        );
+
+        return {
+          id,
+          title,
+          comment_count,
+          task_count,
+          author: author.uuid,
+          created_on: dayjs(created_on).toDate(),
+          updated_on: dayjs(updated_on).toDate(),
+          first_commit_on: dayjs(first_commit_on || created_on).toDate(),
+        };
+      }
+    )
+  );
+
+  pullRequestList.push(...pullRequests);
+
+  return { pullRequests: pullRequestList, nextPageLink };
+}
+
 export async function fetchPullRequestActivities(
   config: Config,
   repoSlug: string,
@@ -306,7 +370,9 @@ export async function fetchPullRequestActivities(
       nextPageLink ||
       `/repositories/${config.workspace}/${repoSlug}/pullrequests/${pullRequestId}/activity`;
     console.log(`Fetching activities for '${repoSlug}' from '${url}'`);
-    const response = await apiClient.get<ListResponse<RawActivity>>(url);
+    const response = await apiClient.get<ListResponse<RawActivity>>(url, {
+      params: nextPageLink ? {} : { pagelen: 50 },
+    });
     nextPageLink = response.data.next;
 
     console.log(

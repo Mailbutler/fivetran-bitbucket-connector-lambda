@@ -5,9 +5,9 @@ import {
   PullRequest,
   User,
   fetchPullRequestActivities,
-  fetchPullRequestsPage,
-  fetchPullRequestsSince,
+  fetchPullRequests,
   fetchUsers,
+  pullRequestUrls,
 } from "./bitbucket";
 import dayjs from "dayjs";
 
@@ -15,82 +15,52 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
   event
 ) => {
   try {
-    const initialSync = !event.state.since;
-    const repositorySlugs = event.secrets.repositorySlugs.split(",");
+    const workspace = process.env.WORKSPACE;
+    if (!workspace) throw new Error("Missing workspace!");
+
+    const repositorySlugs = (process.env.REPOSITORY_SLUGS || "").split(",");
     console.log(`Fetching information for ${repositorySlugs}`);
 
-    const users: User[] = await fetchUsers(event.secrets);
+    const updatedSince = event.state.since
+      ? dayjs(event.state.since)
+      : undefined;
+
+    const users: User[] = await fetchUsers(event.secrets, workspace);
     const pull_requests: PullRequest[] = [];
     const pull_request_activities: Activity[] = [];
 
-    const nextPageLinks: Record<
-      string,
-      Record<string, string | undefined>
-    > = {};
+    const urls = event.state.nextPageLinks || [];
+    if (urls.length === 0) {
+      urls.push(...pullRequestUrls(workspace, repositorySlugs, updatedSince));
+    }
 
-    for (const repoSlug of repositorySlugs) {
+    // prepare list of urls to check in another run --> `hasMore`
+    const nextPageLinks: string[] = [];
+
+    for (const url of urls) {
       if (!!event.setup_test) continue;
 
-      const repoPullRequests: PullRequest[] = [];
-      if (event.state.since) {
-        const pullRequests = (
-          await Promise.all(
-            (["OPEN", "MERGED"] as const).map((state) =>
-              fetchPullRequestsSince(
-                event.secrets,
-                repoSlug,
-                state,
-                dayjs(event.state.since)
-              )
-            )
-          )
-        ).flat();
-        repoPullRequests.push(...pullRequests);
-      } else {
-        // initial sync case!
-        nextPageLinks[repoSlug] = {};
+      const { pullRequests, nextPageLink, activityUrls } =
+        await fetchPullRequests(event.secrets, url);
 
-        const openPullRequestData = await fetchPullRequestsPage(
-          event.secrets,
-          repoSlug,
-          "OPEN",
-          event.state.nextPageLinks?.[repoSlug]?.["OPEN"]
-        );
-        repoPullRequests.push(...openPullRequestData.pullRequests);
-        nextPageLinks[repoSlug]["OPEN"] = openPullRequestData.nextPageLink;
-
-        const mergedPullRequestData = await fetchPullRequestsPage(
-          event.secrets,
-          repoSlug,
-          "MERGED",
-          event.state.nextPageLinks?.[repoSlug]?.["MERGED"]
-        );
-        repoPullRequests.push(...mergedPullRequestData.pullRequests);
-        nextPageLinks[repoSlug]["MERGED"] = mergedPullRequestData.nextPageLink;
-      }
+      if (nextPageLink) nextPageLinks.push(nextPageLink);
 
       const activities = (
         await Promise.all(
-          repoPullRequests.map((pullRequest) =>
-            fetchPullRequestActivities(event.secrets, repoSlug, pullRequest.id)
+          activityUrls.map((activityUrl) =>
+            fetchPullRequestActivities(event.secrets, activityUrl)
           )
         )
       ).flat();
 
       // add to 'global' lists
+      pull_requests.push(...pullRequests);
       pull_request_activities.push(...activities);
-      pull_requests.push(...repoPullRequests);
     }
-
-    const hasMoreForInitialSync =
-      initialSync &&
-      Object.values(nextPageLinks).some((links) =>
-        Object.values(links).some((link) => !!link)
-      );
 
     return {
       state: {
-        since: hasMoreForInitialSync ? undefined : dayjs().toISOString(),
+        since: dayjs().toISOString(),
         nextPageLinks,
       },
       insert: {
@@ -103,7 +73,7 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
         pull_requests: { primary_key: ["id"] },
         pull_request_activities: { primary_key: ["uuid"] },
       },
-      hasMore: hasMoreForInitialSync,
+      hasMore: nextPageLinks.length > 0,
     };
   } catch (error) {
     return {

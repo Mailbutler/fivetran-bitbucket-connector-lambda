@@ -1,12 +1,10 @@
 export interface FivetranRequest {
   agent: string;
   state: {
-    since?: string; // we could add other 'cursors'
-    nextPageLinks?: Record<string, Record<string, string | undefined>>;
+    since?: string;
+    nextPageLinks?: string[];
   };
   secrets: {
-    workspace: string;
-    repositorySlugs: string;
     username: string;
     password: string;
   };
@@ -19,8 +17,8 @@ export type FivetranRow = { [key: string]: FivetranCellType };
 
 export interface FivetranSuccessResponse {
   state: {
-    since: string | undefined;
-    nextPageLinks: Record<string, Record<string, string | undefined>>;
+    since: string;
+    nextPageLinks: string[];
   };
   insert: Record<string, FivetranRow[]>;
   delete?: Record<string, FivetranRow>;

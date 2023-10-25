@@ -2,10 +2,9 @@ import axios from "axios";
 import dayjs, { Dayjs } from "dayjs";
 import { compactArray, uuid } from "./utils";
 
-interface Config {
+interface Credentials {
   username: string;
   password: string;
-  workspace: string;
 }
 
 export interface PullRequest {
@@ -125,6 +124,9 @@ interface RawPullRequest {
     commits: {
       href: string;
     };
+    activity: {
+      href: string;
+    };
   };
 }
 
@@ -148,12 +150,12 @@ interface ListResponse<T> {
 }
 
 async function fetchFirstCommit(
-  config: Config,
+  credentials: Credentials,
   initialUrl: string
 ): Promise<string | null> {
   const apiClient = axios.create({
     baseURL: "https://api.bitbucket.org/2.0",
-    auth: { username: config.username, password: config.password },
+    auth: credentials,
   });
 
   let nextPageLink: string | undefined;
@@ -180,10 +182,13 @@ async function fetchFirstCommit(
   return null;
 }
 
-export async function fetchUsers(config: Config): Promise<User[]> {
+export async function fetchUsers(
+  credentials: Credentials,
+  workspace: string
+): Promise<User[]> {
   const apiClient = axios.create({
     baseURL: "https://api.bitbucket.org/2.0",
-    auth: { username: config.username, password: config.password },
+    auth: credentials,
   });
 
   const userList: User[] = [];
@@ -191,7 +196,7 @@ export async function fetchUsers(config: Config): Promise<User[]> {
   let nextPageLink: string | undefined;
   do {
     console.log(`Fetching users`);
-    const url = nextPageLink || `/workspaces/${config.workspace}/members`;
+    const url = nextPageLink || `/workspaces/${workspace}/members`;
     const response = await apiClient.get<ListResponse<RawMember>>(url);
     nextPageLink = response.data.next;
 
@@ -215,106 +220,47 @@ export async function fetchUsers(config: Config): Promise<User[]> {
   return userList;
 }
 
-export async function fetchPullRequestsSince(
-  config: Config,
-  repoSlug: string,
-  state: "OPEN" | "MERGED" | "DECLINED",
-  updated_since: Dayjs
-): Promise<PullRequest[]> {
-  const apiClient = axios.create({
-    baseURL: "https://api.bitbucket.org/2.0",
-    auth: { username: config.username, password: config.password },
-  });
-
-  const pullRequestList: PullRequest[] = [];
-
-  let nextPageLink: string | undefined;
-  do {
-    const url =
-      nextPageLink ||
-      `/repositories/${config.workspace}/${repoSlug}/pullrequests`;
-    console.log(
-      `Fetching '${state}' pull requests for '${repoSlug}' from '${url}'`
-    );
-    const response = await apiClient.get<ListResponse<RawPullRequest>>(url, {
-      params: nextPageLink
-        ? {}
-        : {
-            state,
-            pagelen: 50,
-            q: `updated_on >= ${updated_since.toISOString()}`,
-          },
-    });
-    nextPageLink = response.data.next;
-
-    console.log(
-      `Fetched ${response.data.values.length} '${state}' pull requests for ${repoSlug}`
-    );
-
-    const pullRequests: PullRequest[] = await Promise.all(
-      response.data.values.map(
-        async ({
-          id,
-          title,
-          comment_count,
-          task_count,
-          author,
-          created_on,
-          updated_on,
-          links,
-        }) => {
-          const first_commit_on = await fetchFirstCommit(
-            config,
-            links.commits.href
+export function pullRequestUrls(
+  workspace: string,
+  repoSlugs: string[],
+  updated_since?: Dayjs
+): string[] {
+  return repoSlugs
+    .map((repoSlug) =>
+      ["OPEN", "MERGED"].map((state) => {
+        const url = new URL(
+          `https://api.bitbucket.org/2.0/repositories/${workspace}/${repoSlug}/pullrequests`
+        );
+        url.searchParams.append("pagelen", "50");
+        url.searchParams.append("state", state);
+        if (updated_since)
+          url.searchParams.append(
+            "q",
+            `updated_on >= ${updated_since.toISOString()}`
           );
-
-          return {
-            id,
-            title,
-            comment_count,
-            task_count,
-            author: author.uuid,
-            created_on: dayjs(created_on).toDate(),
-            updated_on: dayjs(updated_on).toDate(),
-            first_commit_on: dayjs(first_commit_on || created_on).toDate(),
-          };
-        }
-      )
-    );
-
-    pullRequestList.push(...pullRequests);
-  } while (!!nextPageLink);
-
-  return pullRequestList;
+        return url.href;
+      })
+    )
+    .flat();
 }
 
-export async function fetchPullRequestsPage(
-  config: Config,
-  repoSlug: string,
-  state: "OPEN" | "MERGED" | "DECLINED",
-  nextPageLink: string | undefined
-): Promise<{ pullRequests: PullRequest[]; nextPageLink: string | undefined }> {
+export async function fetchPullRequests(
+  credentials: Credentials,
+  url: string
+): Promise<{
+  pullRequests: PullRequest[];
+  activityUrls: string[];
+  nextPageLink: string | undefined;
+}> {
   const apiClient = axios.create({
     baseURL: "https://api.bitbucket.org/2.0",
-    auth: { username: config.username, password: config.password },
+    auth: credentials,
   });
 
-  const pullRequestList: PullRequest[] = [];
+  console.log(`Fetching pull requests from '${url}'`);
+  const response = await apiClient.get<ListResponse<RawPullRequest>>(url);
 
-  const url =
-    nextPageLink ||
-    `/repositories/${config.workspace}/${repoSlug}/pullrequests`;
-  console.log(
-    `Fetching '${state}' pull requests for '${repoSlug}' from '${url}'`
-  );
-  const response = await apiClient.get<ListResponse<RawPullRequest>>(url, {
-    params: nextPageLink ? {} : { state, pagelen: 50 },
-  });
-  nextPageLink = response.data.next;
-
-  console.log(
-    `Fetched ${response.data.values.length} '${state}' pull requests for ${repoSlug}`
-  );
+  console.log(`Fetched ${response.data.values.length} pull requests`);
 
   const pullRequests: PullRequest[] = await Promise.all(
     response.data.values.map(
@@ -329,7 +275,7 @@ export async function fetchPullRequestsPage(
         links,
       }) => {
         const first_commit_on = await fetchFirstCommit(
-          config,
+          credentials,
           links.commits.href
         );
 
@@ -347,37 +293,34 @@ export async function fetchPullRequestsPage(
     )
   );
 
-  pullRequestList.push(...pullRequests);
+  const activityUrls = response.data.values.map(
+    (responseData) => responseData.links.activity.href
+  );
 
-  return { pullRequests: pullRequestList, nextPageLink };
+  return { pullRequests, activityUrls, nextPageLink: response.data.next };
 }
 
 export async function fetchPullRequestActivities(
-  config: Config,
-  repoSlug: string,
-  pullRequestId: number
+  credentials: Credentials,
+  url: string
 ): Promise<Activity[]> {
   const apiClient = axios.create({
     baseURL: "https://api.bitbucket.org/2.0",
-    auth: { username: config.username, password: config.password },
+    auth: credentials,
   });
 
   const activityList: Activity[] = [];
 
   let nextPageLink: string | undefined;
   do {
-    const url =
-      nextPageLink ||
-      `/repositories/${config.workspace}/${repoSlug}/pullrequests/${pullRequestId}/activity`;
-    console.log(`Fetching activities for '${repoSlug}' from '${url}'`);
-    const response = await apiClient.get<ListResponse<RawActivity>>(url, {
-      params: nextPageLink ? {} : { pagelen: 50 },
-    });
+    console.log(`Fetching activities from '${nextPageLink || url}'`);
+    const response = await apiClient.get<ListResponse<RawActivity>>(
+      nextPageLink || url,
+      { params: nextPageLink ? {} : { pagelen: 50 } }
+    );
     nextPageLink = response.data.next;
 
-    console.log(
-      `Fetched ${response.data.values.length} activities for ${repoSlug}`
-    );
+    console.log(`Fetched ${response.data.values.length} activities`);
 
     const activities: Activity[] = compactArray(
       response.data.values.map((rawActivity) => {

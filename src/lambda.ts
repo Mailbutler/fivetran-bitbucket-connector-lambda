@@ -18,9 +18,6 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
     const workspace = process.env.WORKSPACE;
     if (!workspace) throw new Error("Missing workspace!");
 
-    const repositorySlugs = (process.env.REPOSITORY_SLUGS || "").split(",");
-    console.log(`Fetching information for ${repositorySlugs}`);
-
     const updatedSince = event.state.since
       ? dayjs(event.state.since)
       : undefined;
@@ -31,7 +28,9 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
 
     const urls = event.state.nextPageLinks || [];
     if (urls.length === 0) {
-      urls.push(...pullRequestUrls(workspace, repositorySlugs, updatedSince));
+      urls.push(
+        ...(await pullRequestUrls(event.secrets, workspace, updatedSince))
+      );
     }
 
     // prepare list of urls to check in another run --> `hasMore`

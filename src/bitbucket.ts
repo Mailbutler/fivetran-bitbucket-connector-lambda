@@ -154,6 +154,14 @@ interface RawPullRequest {
   };
 }
 
+interface RawRepository {
+  links: {
+    pullrequests: {
+      href: string;
+    };
+  };
+}
+
 interface RawPullRequest {
   id: number;
   title: string;
@@ -244,17 +252,28 @@ export async function fetchUsers(
   return userList;
 }
 
-export function pullRequestUrls(
+export async function pullRequestUrls(
+  credentials: Credentials,
   workspace: string,
-  repoSlugs: string[],
   updated_since?: Dayjs
-): string[] {
-  return repoSlugs
-    .map((repoSlug) =>
+): Promise<string[]> {
+  const apiClient = axios.create({
+    baseURL: "https://api.bitbucket.org/2.0",
+    auth: credentials,
+  });
+
+  const response = await apiClient.get<ListResponse<RawRepository>>(
+    `https://api.bitbucket.org/2.0/repositories/${workspace}`,
+    { params: { pagelen: 100 } }
+  );
+  const urls = response.data.values.map(
+    (repository) => repository.links.pullrequests.href
+  );
+
+  return urls
+    .map((urlString) =>
       ["OPEN", "MERGED"].map((state) => {
-        const url = new URL(
-          `https://api.bitbucket.org/2.0/repositories/${workspace}/${repoSlug}/pullrequests`
-        );
+        const url = new URL(urlString);
         url.searchParams.append("pagelen", "50");
         url.searchParams.append("state", state);
         if (updated_since)

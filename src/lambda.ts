@@ -70,7 +70,7 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
       },
       schema: {
         users: { primary_key: ["uuid"] },
-        pull_requests: { primary_key: ["id"] },
+        pull_requests: { primary_key: ["repository", "id"] },
         pull_request_activities: { primary_key: ["uuid"] },
       },
       hasMore: nextPageLinks.length > 0,

@@ -9,6 +9,7 @@ interface Credentials {
 
 export interface PullRequest {
   [key: string]: string | number | Date | null;
+  repository: string;
   id: number;
   title: string;
   author: string;
@@ -25,6 +26,7 @@ export interface Activity {
   type: string | "comment" | "approval" | "merged" | "open" | "declined";
   date: Date;
   user_id: string;
+  repository: string;
   pull_request_id: number;
 }
 
@@ -105,6 +107,28 @@ function isChangeRequest(
   activity: RawActivity
 ): activity is RawChangeRequestActivity {
   return !!activity.changes_requested;
+}
+
+function urlComponents(url: string): {
+  workspace: string;
+  repository: string;
+} {
+  const matchedGroups =
+    /repositories\/(?<workspace>[a-z0-9-_]+)\/(?<repository>[a-z0-9-_]+)/i.exec(
+      url
+    )?.groups;
+  if (
+    !matchedGroups ||
+    !matchedGroups["workspace"] ||
+    !matchedGroups["repository"]
+  ) {
+    throw new Error("Failed to destruct URL!");
+  }
+
+  return {
+    workspace: matchedGroups["workspace"],
+    repository: matchedGroups["repository"],
+  };
 }
 
 interface RawCommit {
@@ -262,6 +286,8 @@ export async function fetchPullRequests(
 
   console.log(`Fetched ${response.data.values.length} pull requests`);
 
+  const repository = urlComponents(url).repository;
+
   const pullRequests: PullRequest[] = await Promise.all(
     response.data.values.map(
       async ({
@@ -280,6 +306,7 @@ export async function fetchPullRequests(
         );
 
         return {
+          repository,
           id,
           title,
           comment_count,
@@ -308,6 +335,7 @@ export async function fetchPullRequestActivities(
     baseURL: "https://api.bitbucket.org/2.0",
     auth: credentials,
   });
+  const repository = urlComponents(url).repository;
 
   const activityList: Activity[] = [];
 
@@ -332,6 +360,7 @@ export async function fetchPullRequestActivities(
             type: "approval",
             date: dayjs(rawActivity.approval.date).toDate(),
             user_id: rawActivity.approval.user.uuid,
+            repository,
             pull_request_id: rawActivity.pull_request.id,
           };
         } else if (isComment(rawActivity)) {
@@ -342,6 +371,7 @@ export async function fetchPullRequestActivities(
             type: "comment",
             date: dayjs(rawActivity.comment.created_on).toDate(),
             user_id: rawActivity.comment.user.uuid,
+            repository,
             pull_request_id: rawActivity.pull_request.id,
           };
         } else if (isUpdate(rawActivity)) {
@@ -352,6 +382,7 @@ export async function fetchPullRequestActivities(
             type: rawActivity.update.state.toLowerCase(),
             date: dayjs(rawActivity.update.date).toDate(),
             user_id: rawActivity.update.author.uuid,
+            repository,
             pull_request_id: rawActivity.pull_request.id,
           };
         } else if (isChangeRequest(rawActivity)) {
@@ -362,6 +393,7 @@ export async function fetchPullRequestActivities(
             type: "changeRequest",
             date: dayjs(rawActivity.changes_requested.date).toDate(),
             user_id: rawActivity.changes_requested.user.uuid,
+            repository,
             pull_request_id: rawActivity.pull_request.id,
           };
         } else {

@@ -9,8 +9,8 @@
     "clean": "rm -rf *.js src/*.js dist",
     "test": "mocha -r /usr/local/lib/node_modules/ts-node/register -C test/**.spec.ts",
     "local": "tsc && node-lambda run",
-    "package": "tsc && node-lambda package",
-    "deploy": "tsc && node-lambda deploy"
+    "package": "yarn clean && tsc && node-lambda package",
+    "deploy": "yarn clean && tsc && node-lambda deploy"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.125",

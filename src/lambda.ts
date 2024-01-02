@@ -85,7 +85,7 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
         pull_requests: { primary_key: ["repository", "id"] },
         pull_request_activities: { primary_key: ["uuid"] },
         pull_request_participants: {
-          primary_key: ["pull_request_id", "user_id"],
+          primary_key: ["repository", "pull_request_id", "user_id"],
         },
       },
       hasMore: nextPageLinks.length > 0,

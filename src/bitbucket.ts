@@ -33,6 +33,7 @@ export interface Activity {
 
 export interface PullRequestParticipant {
   [key: string]: string | number | boolean | Date | null;
+  repository: string;
   pull_request_id: number;
   user_id: string;
   approved: boolean;
@@ -388,6 +389,7 @@ export async function fetchPullRequestParticipants(
   const response = await apiClient.get<RawPullRequest>(url);
 
   return response.data.participants!.map((participant) => ({
+    repository: urlComponents(url).repository,
     pull_request_id: response.data.id,
     user_id: participant.user.uuid,
     approved: participant.approved,

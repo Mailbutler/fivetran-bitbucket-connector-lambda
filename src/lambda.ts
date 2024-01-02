@@ -3,7 +3,7 @@ import { FivetranRequest, FivetranResponse } from "./fivetran";
 import {
   Activity,
   PullRequest,
-  PullRequestReviewer,
+  PullRequestParticipant,
   User,
   fetchPullRequestActivities,
   fetchPullRequests,
@@ -26,7 +26,7 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
     const users: User[] = await fetchUsers(event.secrets, workspace);
     const pull_requests: PullRequest[] = [];
     const pull_request_activities: Activity[] = [];
-    const pull_request_reviewers: PullRequestReviewer[] = [];
+    const pull_request_participants: PullRequestParticipant[] = [];
 
     const urls = event.state.nextPageLinks || [];
     if (urls.length === 0) {
@@ -41,7 +41,7 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
     for (const url of urls) {
       if (!!event.setup_test) continue;
 
-      const { pullRequests, nextPageLink, activityUrls, reviewers } =
+      const { pullRequests, nextPageLink, activityUrls, participants } =
         await fetchPullRequests(event.secrets, url);
 
       if (nextPageLink) nextPageLinks.push(nextPageLink);
@@ -57,7 +57,7 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
       // add to 'global' lists
       pull_requests.push(...pullRequests);
       pull_request_activities.push(...activities);
-      pull_request_reviewers.push(...reviewers);
+      pull_request_participants.push(...participants);
     }
 
     return {
@@ -69,13 +69,13 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
         users,
         pull_requests,
         pull_request_activities,
-        pull_request_reviewers,
+        pull_request_participants,
       },
       schema: {
         users: { primary_key: ["uuid"] },
         pull_requests: { primary_key: ["repository", "id"] },
         pull_request_activities: { primary_key: ["uuid"] },
-        pull_request_reviewers: {
+        pull_request_participants: {
           primary_key: ["pull_request_id", "user_id"],
         },
       },

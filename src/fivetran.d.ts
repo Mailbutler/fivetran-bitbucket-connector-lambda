@@ -12,7 +12,7 @@ export interface FivetranRequest {
   sync_id?: string;
 }
 
-export type FivetranCellType = string | number | Date | null;
+export type FivetranCellType = string | number | boolean | Date | null;
 export type FivetranRow = { [key: string]: FivetranCellType };
 
 export interface FivetranSuccessResponse {

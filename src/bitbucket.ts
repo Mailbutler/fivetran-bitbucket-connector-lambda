@@ -30,6 +30,15 @@ export interface Activity {
   pull_request_id: number;
 }
 
+export interface PullRequestParticipant {
+  [key: string]: string | number | boolean | Date | null;
+  pull_request_id: number;
+  user_id: string;
+  approved: boolean;
+  state: "approved" | "changes_requested" | null;
+  participated_on: Date;
+}
+
 export interface User {
   [key: string]: string;
   uuid: string;
@@ -41,6 +50,15 @@ export interface User {
 interface RawMember {
   type: "workspace_membership" | string;
   user: RawUser;
+}
+
+interface RawParticipant {
+  type: string;
+  user: RawUser;
+  role: "PARTICIPANT" | "REVIEWER";
+  approved: boolean;
+  state: "approved" | "changes_requested" | null;
+  participated_on: string;
 }
 
 interface RawUser {
@@ -169,6 +187,7 @@ interface RawPullRequest {
   task_count: number;
   closed_by: RawUser | null;
   author: RawUser;
+  participants: RawParticipant[];
   created_on: string;
   updated_on: string;
 }
@@ -293,6 +312,7 @@ export async function fetchPullRequests(
 ): Promise<{
   pullRequests: PullRequest[];
   activityUrls: string[];
+  participants: PullRequestParticipant[];
   nextPageLink: string | undefined;
 }> {
   const apiClient = axios.create({
@@ -343,7 +363,22 @@ export async function fetchPullRequests(
     (responseData) => responseData.links.activity.href
   );
 
-  return { pullRequests, activityUrls, nextPageLink: response.data.next };
+  const participants = response.data.values.flatMap((pullRequest) =>
+    pullRequest.participants.map((rawParticipant) => ({
+      pull_request_id: pullRequest.id,
+      user_id: rawParticipant.user.account_id,
+      approved: rawParticipant.approved,
+      state: rawParticipant.state,
+      participated_on: dayjs(rawParticipant.participated_on).toDate(),
+    }))
+  );
+
+  return {
+    pullRequests,
+    activityUrls,
+    participants,
+    nextPageLink: response.data.next,
+  };
 }
 
 export async function fetchPullRequestActivities(

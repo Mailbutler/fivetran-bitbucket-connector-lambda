@@ -6,6 +6,7 @@ import {
   PullRequestParticipant,
   User,
   fetchPullRequestActivities,
+  fetchPullRequestParticipants,
   fetchPullRequests,
   fetchUsers,
   pullRequestUrls,
@@ -41,7 +42,7 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
     for (const url of urls) {
       if (!!event.setup_test) continue;
 
-      const { pullRequests, nextPageLink, activityUrls, participants } =
+      const { pullRequests, nextPageLink, activityUrls } =
         await fetchPullRequests(event.secrets, url);
 
       if (nextPageLink) nextPageLinks.push(nextPageLink);
@@ -50,6 +51,14 @@ export const handler: Handler<FivetranRequest, FivetranResponse> = async (
         await Promise.all(
           activityUrls.map((activityUrl) =>
             fetchPullRequestActivities(event.secrets, activityUrl)
+          )
+        )
+      ).flat();
+
+      const participants = (
+        await Promise.all(
+          pullRequests.map((pullRequest) =>
+            fetchPullRequestParticipants(event.secrets, pullRequest.url)
           )
         )
       ).flat();

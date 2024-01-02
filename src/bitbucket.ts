@@ -11,6 +11,7 @@ export interface PullRequest {
   [key: string]: string | number | Date | null;
   repository: string;
   id: number;
+  url: string;
   title: string;
   author: string;
   comment_count: number;
@@ -163,6 +164,9 @@ interface RawPullRequest {
   created_on: string;
   updated_on: string;
   links: {
+    self: {
+      href: string;
+    };
     commits: {
       href: string;
     };
@@ -187,7 +191,8 @@ interface RawPullRequest {
   task_count: number;
   closed_by: RawUser | null;
   author: RawUser;
-  participants: RawParticipant[];
+  participants?: RawParticipant[]; // only included when fetching the PR by its id
+  reviewers?: RawUser[]; // only included when fetching the PR by its id
   created_on: string;
   updated_on: string;
 }
@@ -312,7 +317,6 @@ export async function fetchPullRequests(
 ): Promise<{
   pullRequests: PullRequest[];
   activityUrls: string[];
-  participants: PullRequestParticipant[];
   nextPageLink: string | undefined;
 }> {
   const apiClient = axios.create({
@@ -347,6 +351,7 @@ export async function fetchPullRequests(
         return {
           repository,
           id,
+          url: links.self.href,
           title,
           comment_count,
           task_count,
@@ -363,22 +368,32 @@ export async function fetchPullRequests(
     (responseData) => responseData.links.activity.href
   );
 
-  const participants = response.data.values.flatMap((pullRequest) =>
-    pullRequest.participants.map((rawParticipant) => ({
-      pull_request_id: pullRequest.id,
-      user_id: rawParticipant.user.account_id,
-      approved: rawParticipant.approved,
-      state: rawParticipant.state,
-      participated_on: dayjs(rawParticipant.participated_on).toDate(),
-    }))
-  );
-
   return {
     pullRequests,
     activityUrls,
-    participants,
     nextPageLink: response.data.next,
   };
+}
+
+export async function fetchPullRequestParticipants(
+  credentials: Credentials,
+  url: string
+): Promise<PullRequestParticipant[]> {
+  const apiClient = axios.create({
+    baseURL: "https://api.bitbucket.org/2.0",
+    auth: credentials,
+  });
+
+  console.log(`Fetching participants for '${url}'`);
+  const response = await apiClient.get<RawPullRequest>(url);
+
+  return response.data.participants!.map((participant) => ({
+    pull_request_id: response.data.id,
+    user_id: participant.user.uuid,
+    approved: participant.approved,
+    state: participant.state,
+    participated_on: dayjs(participant.participated_on).toDate(),
+  }));
 }
 
 export async function fetchPullRequestActivities(

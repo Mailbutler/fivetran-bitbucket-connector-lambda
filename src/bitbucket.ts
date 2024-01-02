@@ -13,11 +13,18 @@ export interface PullRequest {
   id: number;
   title: string;
   author: string;
+  closed_by: string | null;
   comment_count: number;
   task_count: number;
   created_on: Date;
   updated_on: Date;
   first_commit_on: Date;
+}
+
+export interface PullRequestReviewer {
+  [key: string]: string | number;
+  pull_request_id: number;
+  user_id: string;
 }
 
 export interface Activity {
@@ -50,15 +57,6 @@ export interface User {
 interface RawMember {
   type: "workspace_membership" | string;
   user: RawUser;
-}
-
-interface RawParticipant {
-  type: string;
-  user: RawUser;
-  role: "PARTICIPANT" | "REVIEWER";
-  approved: boolean;
-  state: "approved" | "changes_requested" | null;
-  participated_on: string;
 }
 
 interface RawUser {
@@ -187,7 +185,7 @@ interface RawPullRequest {
   task_count: number;
   closed_by: RawUser | null;
   author: RawUser;
-  participants: RawParticipant[];
+  reviewers: RawUser[];
   created_on: string;
   updated_on: string;
 }
@@ -312,7 +310,7 @@ export async function fetchPullRequests(
 ): Promise<{
   pullRequests: PullRequest[];
   activityUrls: string[];
-  participants: PullRequestParticipant[];
+  reviewers: PullRequestReviewer[];
   nextPageLink: string | undefined;
 }> {
   const apiClient = axios.create({
@@ -335,6 +333,7 @@ export async function fetchPullRequests(
         comment_count,
         task_count,
         author,
+        closed_by,
         created_on,
         updated_on,
         links,
@@ -351,6 +350,7 @@ export async function fetchPullRequests(
           comment_count,
           task_count,
           author: author.uuid,
+          closed_by: closed_by?.uuid || null,
           created_on: dayjs(created_on).toDate(),
           updated_on: dayjs(updated_on).toDate(),
           first_commit_on: dayjs(first_commit_on || created_on).toDate(),
@@ -363,20 +363,17 @@ export async function fetchPullRequests(
     (responseData) => responseData.links.activity.href
   );
 
-  const participants = response.data.values.flatMap((pullRequest) =>
-    pullRequest.participants.map((rawParticipant) => ({
+  const reviewers = response.data.values.flatMap((pullRequest) =>
+    pullRequest.reviewers.map((reviewer) => ({
       pull_request_id: pullRequest.id,
-      user_id: rawParticipant.user.account_id,
-      approved: rawParticipant.approved,
-      state: rawParticipant.state,
-      participated_on: dayjs(rawParticipant.participated_on).toDate(),
+      user_id: reviewer.uuid,
     }))
   );
 
   return {
     pullRequests,
     activityUrls,
-    participants,
+    reviewers,
     nextPageLink: response.data.next,
   };
 }

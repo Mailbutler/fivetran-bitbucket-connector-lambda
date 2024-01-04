@@ -36,6 +36,7 @@ export interface PullRequestParticipant {
   repository: string;
   pull_request_id: number;
   user_id: string;
+  role: "PARTICIPANT" | "REVIEWER";
   approved: boolean;
   state: "approved" | "changes_requested" | null;
   participated_on: Date;
@@ -392,6 +393,7 @@ export async function fetchPullRequestParticipants(
     repository: urlComponents(url).repository,
     pull_request_id: response.data.id,
     user_id: participant.user.uuid,
+    role: participant.role,
     approved: participant.approved,
     state: participant.state,
     participated_on: dayjs(participant.participated_on).toDate(),

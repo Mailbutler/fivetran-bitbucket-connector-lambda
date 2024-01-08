@@ -14,6 +14,7 @@ export interface PullRequest {
   url: string;
   title: string;
   author: string;
+  state: string;
   comment_count: number;
   task_count: number;
   created_on: Date;
@@ -163,6 +164,7 @@ interface RawPullRequest {
   comment_count: number;
   task_count: number;
   author: RawUser;
+  state: string;
   created_on: string;
   updated_on: string;
   links: {
@@ -341,6 +343,7 @@ export async function fetchPullRequests(
         comment_count,
         task_count,
         author,
+        state,
         created_on,
         updated_on,
         links,
@@ -355,6 +358,7 @@ export async function fetchPullRequests(
           id,
           url: links.self.href,
           title,
+          state,
           comment_count,
           task_count,
           author: author.uuid,

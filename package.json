@@ -13,17 +13,17 @@
     "deploy": "yarn clean && tsc && node-lambda deploy"
   },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.125",
-    "@types/chai": "^4.3.9",
-    "@types/crypto-js": "^4.1.2",
-    "@types/mocha": "^10.0.3",
-    "@types/node": "^20.8.7",
-    "chai": "^4.3.10",
-    "mocha": "^10.2.0"
+    "@types/aws-lambda": "^8.10.152",
+    "@types/chai": "^5.2.2",
+    "@types/crypto-js": "^4.2.2",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.0.0",
+    "chai": "^5.2.1",
+    "mocha": "^11.7.1"
   },
   "dependencies": {
-    "axios": "^1.5.1",
-    "crypto-js": "^4.1.1",
+    "axios": "^1.11.0",
+    "crypto-js": "^4.2.0",
     "dayjs": "^1.11.10"
   }
 }
